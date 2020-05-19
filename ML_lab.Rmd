@@ -1,0 +1,165 @@
+---
+title: "Machine Learning Lab Notebook"
+output: html_notebook
+author: "Sam Nuzbrokh"
+---
+
+```{r}
+library("tidyverse")
+library(GGally)
+library(lubridate)
+```
+```{r}
+clean_data_str = function(date_str) {
+  mdy = mdy(date_str)
+  ymd = ymd(date_str)
+  
+  if(is.na(mdy)){
+    if(is.na(ymd)){
+      return(NA)
+    }
+    else {return(ymd)}
+  }
+  else {return(mdy)}
+}
+
+fmt_df_amount = function(df) {
+  df = df %>% mutate('Profit' = as.numeric(gsub('[$,]', '', Profit)),
+                     'Sales' = as.numeric(gsub('[$,]', '', Sales)))
+}
+```
+
+
+## Part I: Preprocessing and EDA
+
+- Data is from a global e-retailer company, including orders from 2012 to 2015.
+
+```{r}
+orders = read_csv('./data/orders.csv')
+```
+
+
+### Problem 1
+```{r}
+orders = fmt_df_amount(orders)
+orders  = orders %>% 
+  mutate('Order.Date' = clean_data_str(Order.Date), 'Ship.Date' = clean_data_str(Ship.Date))
+```
+```{r}
+library(Hmisc)
+library(psych)
+describe(orders)
+```
+
+
+### Problem 2
+```{r}
+orders %>% 
+  mutate('Order.Month' = floor_date(Order.Date, unit = 'month')) %>% 
+  group_by(Order.Month) %>% 
+  summarise(Quantity = sum(Quantity)) %>% 
+  ggplot(aes(x = Order.Month, y = Quantity)) + geom_col() +
+  labs(y = 'Quantities Ordered')
+  
+```
+Overall, orders start to increase in anticipation and during the holiday season (November-December). Also a sharp jump in months uf June and September - likely reflecting summer and start of school trends. 
+
+Season Trends: Investigation by Category 
+```{r}
+orders %>% 
+  mutate('Order.Month' = floor_date(Order.Date, unit = 'month')) %>% 
+  group_by(Category, Order.Month) %>%
+  summarise(Quantity = sum(Quantity)) %>% 
+  arrange(-Quantity) %>% 
+  mutate(End=lag(Quantity),
+         xpos=1:n()-0.5,
+         Diff=End-Quantity,
+         Percent=paste(round(Diff/End*100,1),"%")) %>% 
+  ggplot(aes(x = Order.Month, y = Quantity)) + 
+  geom_col() +
+  #geom_segment(aes(x=xpos, y = End, xend=xpos, yend=Quantity)) +
+  #geom_text(aes(x=Order.Month, y =  End-Diff/2, label=Percent),hjust=-0.2) +
+  facet_grid(rows= vars(Category), scale='free_y')
+```
+Yes, broadly they do follow similar trends. 
+
+
+### Problem 3
+Load in Returns
+```{r}
+returns = read_csv('./data/returns.csv')
+```
+Cleaning
+```{r}
+returns = returns %>% rename('Order.ID' = `Order ID`)
+```
+
+#### a)
+How much profit did we lost due to returns each year?
+```{r}
+
+returned_orders = orders %>% 
+  semi_join(., returns, by = c('Order.ID', 'Region'))
+
+lost_to_returns = returned_orders %>% 
+  mutate('Year' = year(Order.Date)) %>% 
+  group_by(Year) %>% 
+  summarise(Lost.Profit = sum(Profit))
+
+lost_to_returns
+
+
+```
+
+#### b)
+How many customers returned more than once? 
+```{r}
+returned_orders %>% 
+  group_by(Customer.ID) %>% 
+  tally() %>% 
+  filter(n > 1) %>% 
+  nrow()
+
+returned_orders %>% 
+  group_by(Customer.ID) %>% 
+  tally() %>% 
+  filter(n > 5) %>% 
+  nrow()
+
+
+```
+543 customers returned orders more than once. 
+46 customers returned orders more than 5 times. 
+
+
+#### c)
+Which Regions are more likely to return orders?
+```{r}
+
+num_region_returns = returned_orders %>% 
+  group_by(Region) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+num_region_orders = orders %>% 
+  group_by(Region) %>% 
+  tally()
+
+num_region_orders %>% 
+  left_join(., num_region_returns, by = 'Region') %>% 
+  mutate('Return.Rate' = round(n.y/n.x*100,2)) %>% 
+  arrange(desc(Return.Rate))
+
+#percent_returned_region
+```
+We can see that Western US, Eastern Asia, Southern Europe, Southern Africa, and Southern US are the most likely to return orders - with return rates over 5%.
+
+
+#### d)	
+Which categories (sub-categories) of products are more likely to be returned?
+```{r}
+returned_orders %>% 
+  group_by()
+
+```
+
