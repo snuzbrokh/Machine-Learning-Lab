@@ -152,14 +152,84 @@ num_region_orders %>%
 
 #percent_returned_region
 ```
-We can see that Western US, Eastern Asia, Southern Europe, Southern Africa, and Southern US are the most likely to return orders - with return rates over 5%.
+We can see that Western US, Eastern Asia, Southern Europe, Southern Africa, and Southern US are the most likely to return orders - with return rates over 5%. No discernable regional pattern as to why orders are returned more frequently in these places. Let's look at countries?
 
+```{r}
+num_country_returns = returned_orders %>% 
+  group_by(Region,Country) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+num_country_orders = orders %>% 
+  group_by(Region,Country) %>% 
+  tally()
+
+num_country_orders %>% 
+  left_join(., num_country_returns, by = c('Region','Country')) %>% 
+  mutate('Return.Rate' = round(n.y/n.x*100,2)) %>% 
+  filter(n.x > 500) %>% 
+  ggplot(aes(x = reorder(Country,Return.Rate), y = Return.Rate)) + geom_point() +
+  theme(axis.text.x=element_text(angle=90, vjust=0.8))
+```
 
 #### d)	
 Which categories (sub-categories) of products are more likely to be returned?
 ```{r}
-returned_orders %>% 
-  group_by()
+num_category_returns = returned_orders %>% 
+  group_by(Sub.Category) %>% 
+  tally() %>% 
+  arrange(desc(n))
+
+num_category_orders = orders %>% 
+  group_by(Sub.Category) %>% 
+  tally()
+
+num_category_orders %>% 
+  left_join(., num_category_returns, by = 'Sub.Category') %>% 
+  mutate('Return.Rate' = round(n.y/n.x*100,2)) %>% 
+  arrange(desc(Return.Rate))
+```
+Labels, Tables, and Accessoare more likely to be returned. 
+
+#### Step 2
+```{r}
+orders = orders %>% mutate(Process.Time = Ship.Date-Order.Date)
+```
+
+#### Step 3
+```{r}
+product_returns = 
+  returned_orders %>% 
+  group_by(Product.ID) %>% 
+  tally()
+
+orders = orders %>% 
+  mutate(Product.Returns = ifelse(Product.ID %in% product_returns$Product.ID, 
+                                  product_returns$n, 0))
+```
+
+### Problem 5
+
+#### Split the Data
+```{r}
+train_size = floor(0.80*nrow(orders))
+
+set.seed(1)   # set seed to ensure you always have same random numbers generated
+train_ind = sample(seq_len(nrow(orders)),size = train_size)
+train = orders[train_ind,] #creates the training dataset 
+test  = orders[-train_ind,]  # creates the test dataset
+```
+
+```{r}
+features = c('Order.Date','Ship.Date','Ship.Mode','Customer.Name','Segment','City','State','Country','Region','Market','Category','Sub.Category','Product.Name','Sales','Quantity','Discount','Profit','Shipping.Cost','Order.Priority','Process.Time','Product.Returns')
+```
+
+
+```{r}
+library(caret)
+```
+
+```{r}
 
 ```
 
